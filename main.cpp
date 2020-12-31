@@ -231,7 +231,7 @@ bool LBtnDownPanel(HDC hdc) {
 		if(rcPenWidth.Contains(ptMouse) || rcAlpha.Contains(ptMouse)) {
 			return true;
 		}
-		
+
 		PointF ptColor1(rcAlpha.GetRight(), rcAlpha.GetTop());
 		RectF rcColor1, rcColor2;
 		g.MeasureString(L"Color ", -1, &f1, ptColor1, &rcColor1);
@@ -256,8 +256,54 @@ bool LBtnDownPanel(HDC hdc) {
 	return false;
 }
 
-LRESULT CALLBACK
-WndProc(HWND hwnd, UINT msgVal, WPARAM wParam, LPARAM lParam) {
+bool wheelPanel(short delta, HDC hdc) {
+	if(pnState < 1) return false;
+	PointF ptMouse(mx, my);
+	Graphics g(hdc);
+
+	Font f1(L"等线", 12);
+	Pen pFg(Color::Black);
+	PointF ptMode(pnX, pnY);
+	RectF rcMode;
+	g.MeasureString(strMode[curFn], -1, &f1, ptMode, &rcMode);
+	if(rcMode.Contains(ptMouse)) {
+		return true;
+	} else if(my < rcMode.GetTop() || my > rcMode.GetBottom()) {
+		return false;
+	}
+	if(pnState < 2) return false;
+	if(curFn == 1) {
+		PointF ptPenWidth(rcMode.GetRight(), rcMode.GetTop());
+		RectF rcPenWidth;
+		std::wstringstream ss(L"");
+		ss << L"Width: " << std::fixed << std::setprecision(1) << curStroke.width;
+		g.MeasureString(ss.str().c_str(), -1, &f1, ptPenWidth, &rcPenWidth);
+
+		PointF ptAlpha(rcPenWidth.GetRight(), rcPenWidth.GetTop());
+		RectF rcAlpha;
+		ss.str(L"");
+		ss << L"Alpha: " << (curStroke.color.GetValue() >> 24);
+		g.MeasureString(ss.str().c_str(), -1, &f1, ptAlpha, &rcAlpha);
+
+		if(rcPenWidth.Contains(ptMouse)) {
+			curStroke.width += delta / 60.0;
+			if(curStroke.width < 0.6)
+				curStroke.width = 0.6;
+			wbPaint(hdc);
+			return true;
+		} else if(rcAlpha.Contains(ptMouse)) {
+			int curAlpha = curStroke.color.GetValue() >> 24;
+			curAlpha += 0.21 * delta;
+			curAlpha = std::min(std::max(curAlpha, 37), 255);
+			curStroke.color.SetValue(curAlpha << 24 | (curStroke.color.GetValue() & 0xffffff));
+			wbPaint(hdc);
+			return true;
+		}
+	}
+	return false;
+}
+
+LRESULT CALLBACK WndProc(HWND hwnd, UINT msgVal, WPARAM wParam, LPARAM lParam) {
 	HDC hdc;
 	SolidBrush sb(Color::Red);
 	switch(msgVal) {
@@ -331,6 +377,12 @@ WndProc(HWND hwnd, UINT msgVal, WPARAM wParam, LPARAM lParam) {
 				wbPaint(hdc);
 				ReleaseDC(hwnd, hdc);
 			}
+			break;
+		}
+		case WM_MOUSEWHEEL: {
+			hdc = GetDC(hwnd);
+			wheelPanel(GET_WHEEL_DELTA_WPARAM(wParam), hdc);
+			ReleaseDC(hwnd, hdc);
 			break;
 		}
 		case WM_PAINT: {
