@@ -4,6 +4,8 @@
 #include <iomanip>
 #include <windows.h>
 #include <gdiplus.h>
+
+#include "wbText.hpp"
 using namespace Gdiplus;
 
 #define VK_ALPHA(ch) (0x41 + (ch) - 'A')
@@ -101,6 +103,9 @@ void wbStrokeNewPt(wbStroke &s, Point pt, Graphics &g) {
 	s.pts.push_back(pt);
 }
 
+int curSeleTxt;
+std::vector<wbText> texts;
+
 void fnClearStroke(bool ask) {
 	if(ask && MessageBox(hwnd, L"Are you sure to clear all the strokes?", wndName, MB_YESNO) == IDNO)
 		return;
@@ -169,6 +174,10 @@ void wbPaint(HDC hdc) {
 		wbDrawStroke(s, g);
 	}
 
+	for(int i = 0; i < (int)texts.size(); i++) {
+		wbDrawText(texts[i], curFn == 3 && i == curSeleTxt, g);
+	}
+
 	wbPaintPanel(g);
 
 	CachedBitmap cb(&bmp, &gDest);
@@ -189,11 +198,62 @@ bool wbEraseStroke(int x, int y) {
 	return false;
 }
 
+void wbDelText(int i) {
+	texts[i] = *texts.rbegin();
+	texts.pop_back();
+}
+
+void wbDeselectText() {
+	if(curSeleTxt >= 0 && curSeleTxt < (int)texts.size() && texts[curSeleTxt].s.empty()) {
+		wbDelText(curSeleTxt);
+	}
+	curSeleTxt = -1;
+}
+
+void wbSelectText(PointF ptMouse, HDC hdc) {
+	Graphics g(hdc);
+	wbDeselectText();
+	for(int i = 0; i < (int)texts.size(); i++) {
+		RectF rcTxt;
+		Font fTxt(texts[i].fName.c_str(),texts[i].fSize,texts[i].fStyle);
+		g.MeasureString(texts[i].s.c_str(), -1, &fTxt, texts[i].o, &rcTxt);
+		if(rcTxt.Contains(ptMouse)) {
+			curSeleTxt = i;
+			wbPaint(hdc);
+			return;
+		}
+	}
+	curSeleTxt = texts.size();
+	texts.push_back({ ptMouse, L"等线", 12.0f, 0, L"" });
+	wbPaint(hdc);
+}
+
+void wbAddToText(wchar_t ch) {
+	if(curSeleTxt < 0 || curSeleTxt >= (int)texts.size()) {
+		return;
+	}
+	if(ch < 32)
+		printf("char input: %d\n",ch);
+	if(ch == 8) {
+		if(texts[curSeleTxt].s.size())
+			texts[curSeleTxt].s.pop_back();
+	} else {
+		texts[curSeleTxt].s.push_back(ch);
+		if(ch == 13) {
+			texts[curSeleTxt].s.push_back(L'\n');
+		}
+	}
+}
+
 void fnChangeFn(int x) {
-	if(curFn != x)
+	if(curFn != x) {
 		pnState = 1;
-	else
+		if(curFn == 3) {
+			wbDeselectText();
+		}
+	} else {
 		++pnState;
+	}
 	curFn = x;
 }
 
@@ -321,8 +381,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msgVal, WPARAM wParam, LPARAM lParam) {
 				break;
 			}
 			mbState |= 1;
-			if(curFn == 1)
+			if(curFn == 1) {
 				curStroke.pts.push_back(Point(mx, my));
+			} else if(curFn == 3) {
+				wbSelectText(PointF(mx,my),hdc);
+			}
 			ReleaseDC(hwnd, hdc);
 			break;
 		}
@@ -403,10 +466,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msgVal, WPARAM wParam, LPARAM lParam) {
 						fnPopStroke(), isToPaint = 1;
 					}
 				} else {
-					if(wParam == VK_F1)
-						fnChangeFn(1), isToPaint = 1;
-					else if(wParam == VK_F2)
-						fnChangeFn(2), isToPaint = 1;
+					if(wParam >= VK_F1 && wParam <= VK_F4) {
+						fnChangeFn(wParam - VK_F1 + 1);
+						isToPaint = 1;
+					}
 				}
 			}
 			if(isToPaint) {
@@ -414,6 +477,18 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msgVal, WPARAM wParam, LPARAM lParam) {
 				wbPaint(hdc);
 				ReleaseDC(hwnd, hdc);
 			}
+			break;
+		}
+		case WM_CHAR: {
+			hdc = GetDC(hwnd);
+			if(curFn == 3) {
+				if(wParam == 27) { // esc
+					wbDeselectText();
+				}
+				wbAddToText(wParam);
+				wbPaint(hdc);
+			}
+			ReleaseDC(hwnd, hdc);
 			break;
 		}
 		case WM_DESTROY: {
