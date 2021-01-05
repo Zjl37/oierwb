@@ -5,6 +5,7 @@
 #include <windows.h>
 #include <gdiplus.h>
 
+#include "wbStroke.hpp"
 #include "wbText.hpp"
 using namespace Gdiplus;
 
@@ -36,72 +37,9 @@ int pnState, pnX = 25, pnY = 30;
 
 std::vector<int> candidateColor{ 0x000000, 0xff0000, 0xffff00, 0x0000ff };
 
-double sqr(double x) {
-	return x * x;
-}
-
-struct vect {
-	double x, y;
-	vect(): x(0), y(0) {}
-	vect(Point p): x(p.X), y(p.Y) {}
-	vect(PointF p): x(p.X), y(p.Y) {}
-	vect(double _x, double _y): x(_x), y(_y) {}
-	vect operator+(const vect &b) const {
-		return vect(x + b.x, y + b.y);
-	}
-	vect operator-(const vect &b) const {
-		return vect(x - b.x, y - b.y);
-	}
-	double operator*(const vect &b) const {
-		return x * b.x + y * b.y;
-	}
-	vect operator*(double fac) const {
-		return vect(x * fac, y * fac);
-	}
-};
-
-double dist(const vect &a, const vect &b) {
-	return sqrt(sqr(a.x - b.x) + sqr(a.y - b.y));
-}
-
-double distSeg(const vect &a, const vect &b, const vect &p) {
-	if((p - a) * (b - a) < 0)
-		return dist(p, a);
-	double pro = (p - b) * (a - b);
-	if(pro < 0)
-		return dist(p, b);
-	return dist(p, b + (a - b) * pro * sqr(1 / dist(a, b)));
-}
-
-struct wbStroke {
-	std::vector<Point> pts;
-	double width;
-	Color color;
-	bool isNear(int x, int y) {
-		if(pts.size() == 1 && dist(vect(x, y), pts[0]) < 4)
-			return true;
-		for(int i = 1; i < (int)pts.size(); i++) {
-			if(distSeg(pts[i - 1], pts[i], vect(x, y)) < 4)
-				return true;
-		}
-		return false;
-	}
-} curStroke;
+wbStroke curStroke;
 std::vector<wbStroke> strokes;
 
-
-void wbDrawStroke(const wbStroke &s, Graphics &g) {
-	if(!s.pts.size())
-		return;
-	Pen p(s.color, s.width);
-	g.DrawLines(&p, &s.pts[0], s.pts.size());
-}
-
-void wbStrokeNewPt(wbStroke &s, Point pt, Graphics &g) {
-	Pen p(curStroke.color, curStroke.width);
-	g.DrawLine(&p, s.pts[s.pts.size() - 1], pt);
-	s.pts.push_back(pt);
-}
 
 int curSeleTxt;
 std::vector<wbText> texts;
@@ -129,7 +67,7 @@ void wbPaintPanel(Graphics &g) {
 		PointF ptPenWidth(rcMode.GetRight(), rcMode.GetTop());
 		RectF rcPenWidth;
 		std::wstringstream ss(L"");
-		ss << L"Width: " << std::fixed << std::setprecision(1) << curStroke.width;
+		ss << L"Width: " << std::fixed << std::setprecision(0) << curStroke.width;
 		g.MeasureString(ss.str().c_str(), -1, &f1, ptPenWidth, &rcPenWidth);
 		g.FillRectangle(&sbBg, rcPenWidth);
 		g.DrawString(ss.str().c_str(), -1, &f1, ptPenWidth, &sbFg);
@@ -232,8 +170,8 @@ void wbAddToText(wchar_t ch) {
 	if(curSeleTxt < 0 || curSeleTxt >= (int)texts.size()) {
 		return;
 	}
-	if(ch < 32)
-		printf("char input: %d\n",ch);
+	// if(ch < 32)
+	// 	printf("char input: %d\n",ch);
 	if(ch == 8) {
 		if(texts[curSeleTxt].s.size())
 			texts[curSeleTxt].s.pop_back();
@@ -279,7 +217,7 @@ bool LBtnDownPanel(HDC hdc) {
 		PointF ptPenWidth(rcMode.GetRight(), rcMode.GetTop());
 		RectF rcPenWidth;
 		std::wstringstream ss(L"");
-		ss << L"Width: " << std::fixed << std::setprecision(1) << curStroke.width;
+		ss << L"Width: " << std::fixed << std::setprecision(0) << curStroke.width;
 		g.MeasureString(ss.str().c_str(), -1, &f1, ptPenWidth, &rcPenWidth);
 
 		PointF ptAlpha(rcPenWidth.GetRight(), rcPenWidth.GetTop());
@@ -336,7 +274,7 @@ bool wheelPanel(short delta, HDC hdc) {
 		PointF ptPenWidth(rcMode.GetRight(), rcMode.GetTop());
 		RectF rcPenWidth;
 		std::wstringstream ss(L"");
-		ss << L"Width: " << std::fixed << std::setprecision(1) << curStroke.width;
+		ss << L"Width: " << std::fixed << std::setprecision(0) << curStroke.width;
 		g.MeasureString(ss.str().c_str(), -1, &f1, ptPenWidth, &rcPenWidth);
 
 		PointF ptAlpha(rcPenWidth.GetRight(), rcPenWidth.GetTop());
@@ -347,8 +285,8 @@ bool wheelPanel(short delta, HDC hdc) {
 
 		if(rcPenWidth.Contains(ptMouse)) {
 			curStroke.width += delta / 60.0;
-			if(curStroke.width < 0.6)
-				curStroke.width = 0.6;
+			if(curStroke.width < 1)
+				curStroke.width = 1;
 			wbPaint(hdc);
 			return true;
 		} else if(rcAlpha.Contains(ptMouse)) {
@@ -370,7 +308,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msgVal, WPARAM wParam, LPARAM lParam) {
 		case WM_CREATE: {
 			GdiplusStartup(&m_gdiplusToken, &StartupInput, NULL);
 			curStroke.color = Color::Black;
-			curStroke.width = 3.6f;
+			curStroke.width = 5.0f;
 			break;
 		}
 		case WM_LBUTTONDOWN: {
