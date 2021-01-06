@@ -1,15 +1,14 @@
 #include <cstdio>
-#include <vector>
-#include <sstream>
 #include <iomanip>
-#include <windows.h>
-#include <gdiplus.h>
 
 #include "wbStroke.hpp"
 #include "wbText.hpp"
+#include "wbGraph.hpp"
 using namespace Gdiplus;
 
 #define VK_ALPHA(ch) (0x41 + (ch) - 'A')
+
+const int ttsDrag = 128;
 
 // API variables
 MSG msg;
@@ -33,6 +32,7 @@ const wchar_t *strMode[] = {
 // Profile variables
 int mx, my;
 int mbState, curFn = 1;
+clock_t tMbDown;
 int pnState, pnX = 25, pnY = 30;
 
 std::vector<int> candidateColor{ 0x000000, 0xff0000, 0xffff00, 0x0000ff };
@@ -43,6 +43,9 @@ std::vector<wbStroke> strokes;
 
 int curSeleTxt;
 std::vector<wbText> texts;
+
+wbGraph gr;
+std::pair<int,int> grSele1, grSele2;
 
 void fnClearStroke(bool ask) {
 	if(ask && MessageBox(hwnd, L"Are you sure to clear all the strokes?", wndName, MB_YESNO) == IDNO)
@@ -115,6 +118,8 @@ void wbPaint(HDC hdc) {
 	for(int i = 0; i < (int)texts.size(); i++) {
 		wbDrawText(texts[i], curFn == 3 && i == curSeleTxt, g);
 	}
+
+	gr.paint(g, grSele2);
 
 	wbPaintPanel(g);
 
@@ -319,10 +324,19 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msgVal, WPARAM wParam, LPARAM lParam) {
 				break;
 			}
 			mbState |= 1;
+			tMbDown = clock();
 			if(curFn == 1) {
 				curStroke.pts.push_back(Point(mx, my));
 			} else if(curFn == 3) {
 				wbSelectText(PointF(mx,my),hdc);
+			} else if(curFn == 4) {
+				grSele1 = gr.select(PointF(mx, my), false);
+				if(grSele1.first == 1 && grSele2.first == 1) {
+					gr.createEdge(grSele1.second, grSele2.second);
+					wbPaint(hdc);
+					mbState ^= 1;
+					grSele2 = { 0, 0 };
+				}
 			}
 			ReleaseDC(hwnd, hdc);
 			break;
@@ -342,6 +356,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msgVal, WPARAM wParam, LPARAM lParam) {
 					ReleaseDC(hwnd, hdc);
 				} else if(curFn == 2) {
 					if(wbEraseStroke(mx, my)) {
+						isToPaint = 1;
+					}
+				} else if(curFn == 4) {
+					if(clock() - tMbDown > ttsDrag) {
+						gr.moveVertex(grSele1.second, PointF(mx, my));
 						isToPaint = 1;
 					}
 				}
@@ -371,6 +390,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msgVal, WPARAM wParam, LPARAM lParam) {
 
 					g.ReleaseHDC(hdc);
 					ReleaseDC(hwnd, hdc);
+				} else if(curFn == 4) {
+					if(clock() - tMbDown <= ttsDrag) {
+						grSele2 = gr.select(PointF(mx, my), true);
+						isToPaint = 1;
+					}
 				}
 			}
 			if(isToPaint) {
