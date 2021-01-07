@@ -4,29 +4,28 @@
 using namespace Gdiplus;
 
 struct wbStroke {
-	std::vector<Point> pts;
+	std::vector<PointF> pts;
 	double width;
 	Color color;
-	bool isNear(int x, int y) {
-		if(pts.size() == 1 && dist(vect(x, y), pts[0]) < 4)
+	bool isNear(PointF pt) {
+		if(pts.size() == 1 && dist(pt, pts[0]) < 4)
 			return true;
 		for(int i = 1; i < (int)pts.size(); i++) {
-			if(distSeg(pts[i - 1], pts[i], vect(x, y)) < 4)
+			if(distSeg(pts[i - 1], pts[i], pt) < 4)
 				return true;
 		}
 		return false;
 	}
 };
 
-void wbDrawStroke(const wbStroke &s, Graphics &g) {
-	if(!s.pts.size())
-		return;
-	Pen p(s.color, s.width);
-	g.DrawLines(&p, &s.pts[0], s.pts.size());
-}
+void wbDrawStroke(const wbStroke &s, Graphics &g);
 
-void wbStrokeNewPt(wbStroke &s, Point pt, Graphics &g) {
-	Pen p(s.color, s.width);
-	g.DrawLine(&p, s.pts[s.pts.size() - 1], pt);
-	s.pts.push_back(pt);
-}
+void wbStrokeNewPt(wbStroke &s, PointF pt);
+void wbStrokeNewPt(wbStroke &s, PointF pt, Graphics &g);
+
+extern wbStroke curStroke;
+extern std::vector<wbStroke> strokes;
+
+void fnClearStroke();
+void fnPopStroke();
+bool wbEraseStroke(int x, int y);

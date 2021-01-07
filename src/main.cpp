@@ -37,21 +37,8 @@ int pnState, pnX = 25, pnY = 30;
 
 std::vector<int> candidateColor{ 0x000000, 0xff0000, 0xffff00, 0x0000ff };
 
-wbStroke curStroke;
-std::vector<wbStroke> strokes;
-
-
-int curSeleTxt;
-std::vector<wbText> texts;
-
 wbGraph gr;
 std::pair<int,int> grSele1, grSele2;
-
-void fnClearStroke(bool ask) {
-	if(ask && MessageBox(hwnd, L"Are you sure to clear all the strokes?", wndName, MB_YESNO) == IDNO)
-		return;
-	strokes.clear();
-}
 
 void wbPaintPanel(Graphics &g) {
 	Font f1(L"等线", 12);
@@ -126,66 +113,6 @@ void wbPaint(HDC hdc) {
 	CachedBitmap cb(&bmp, &gDest);
 	gDest.DrawCachedBitmap(&cb, 0, 0);
 	gDest.ReleaseHDC(hdc);
-}
-
-void fnPopStroke() {
-	if(mbState || !strokes.size())
-		return;
-	strokes.pop_back();
-}
-
-bool wbEraseStroke(int x, int y) {
-	for(int i = 0; i < (int)strokes.size(); i++)
-		if(strokes[i].isNear(x, y))
-			return strokes.erase(strokes.begin() + i), true;
-	return false;
-}
-
-void wbDelText(int i) {
-	texts[i] = *texts.rbegin();
-	texts.pop_back();
-}
-
-void wbDeselectText() {
-	if(curSeleTxt >= 0 && curSeleTxt < (int)texts.size() && texts[curSeleTxt].s.empty()) {
-		wbDelText(curSeleTxt);
-	}
-	curSeleTxt = -1;
-}
-
-void wbSelectText(PointF ptMouse, HDC hdc) {
-	Graphics g(hdc);
-	wbDeselectText();
-	for(int i = 0; i < (int)texts.size(); i++) {
-		RectF rcTxt;
-		Font fTxt(texts[i].fName.c_str(),texts[i].fSize,texts[i].fStyle);
-		g.MeasureString(texts[i].s.c_str(), -1, &fTxt, texts[i].o, &rcTxt);
-		if(rcTxt.Contains(ptMouse)) {
-			curSeleTxt = i;
-			wbPaint(hdc);
-			return;
-		}
-	}
-	curSeleTxt = texts.size();
-	texts.push_back({ ptMouse, L"等线", 12.0f, 0, L"" });
-	wbPaint(hdc);
-}
-
-void wbAddToText(wchar_t ch) {
-	if(curSeleTxt < 0 || curSeleTxt >= (int)texts.size()) {
-		return;
-	}
-	// if(ch < 32)
-	// 	printf("char input: %d\n",ch);
-	if(ch == 8) {
-		if(texts[curSeleTxt].s.size())
-			texts[curSeleTxt].s.pop_back();
-	} else {
-		texts[curSeleTxt].s.push_back(ch);
-		if(ch == 13) {
-			texts[curSeleTxt].s.push_back(L'\n');
-		}
-	}
 }
 
 void fnChangeFn(int x) {
@@ -318,6 +245,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msgVal, WPARAM wParam, LPARAM lParam) {
 		}
 		case WM_LBUTTONDOWN: {
 			mx = LOWORD(lParam), my = HIWORD(lParam);
+			bool isToPaint = 0;
 			hdc = GetDC(hwnd);
 			if(LBtnDownPanel(hdc)) {
 				ReleaseDC(hwnd, hdc);
@@ -326,17 +254,22 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msgVal, WPARAM wParam, LPARAM lParam) {
 			mbState |= 1;
 			tMbDown = clock();
 			if(curFn == 1) {
-				curStroke.pts.push_back(Point(mx, my));
+				wbStrokeNewPt(curStroke, PointF(mx, my));
+				curStroke.pts.push_back(PointF(mx, my));
 			} else if(curFn == 3) {
-				wbSelectText(PointF(mx,my),hdc);
+				wbSelectText(PointF(mx, my), hdc);
+				isToPaint = 1;
 			} else if(curFn == 4) {
 				grSele1 = gr.select(PointF(mx, my), false);
 				if(grSele1.first == 1 && grSele2.first == 1) {
 					gr.createEdge(grSele1.second, grSele2.second);
-					wbPaint(hdc);
 					mbState ^= 1;
 					grSele2 = { 0, 0 };
+					isToPaint = 1;
 				}
+			}
+			if(isToPaint) {
+				wbPaint(hdc);
 			}
 			ReleaseDC(hwnd, hdc);
 			break;
@@ -350,7 +283,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msgVal, WPARAM wParam, LPARAM lParam) {
 					Graphics g(hdc);
 					g.SetSmoothingMode(SmoothingMode::SmoothingModeAntiAlias);
 
-					wbStrokeNewPt(curStroke, Point(mx, my), g);
+					wbStrokeNewPt(curStroke, PointF(mx, my), g);
 
 					g.ReleaseHDC(hdc);
 					ReleaseDC(hwnd, hdc);
@@ -383,7 +316,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msgVal, WPARAM wParam, LPARAM lParam) {
 					Graphics g(hdc);
 					g.SetSmoothingMode(SmoothingMode::SmoothingModeAntiAlias);
 
-					wbStrokeNewPt(curStroke, Point(mx, my), g);
+					wbStrokeNewPt(curStroke, PointF(mx, my), g);
 
 					strokes.push_back(curStroke);
 					curStroke.pts.clear();
@@ -423,7 +356,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msgVal, WPARAM wParam, LPARAM lParam) {
 			if(!(lParam & KF_REPEAT)) {
 				if(GetKeyState(VK_CONTROL) & 0x8000) {
 					if(wParam == VK_ALPHA('D')) {
-						fnClearStroke(true), isToPaint = 1;
+						if(MessageBox(hwnd, L"Are you sure to clear all the strokes?", wndName, MB_YESNO) != IDNO)
+							fnClearStroke(), isToPaint = 1;
 					} else if(wParam == VK_ALPHA('Z')) {
 						fnPopStroke(), isToPaint = 1;
 					}
@@ -449,6 +383,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msgVal, WPARAM wParam, LPARAM lParam) {
 				}
 				wbAddToText(wParam);
 				wbPaint(hdc);
+			} else if(curFn == 4) {
+				if(wParam == 27) {
+					grSele2 = std::make_pair(0, 0);
+				}
 			}
 			ReleaseDC(hwnd, hdc);
 			break;
