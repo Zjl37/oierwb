@@ -365,6 +365,20 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msgVal, WPARAM wParam, LPARAM lParam) {
 					if(wParam >= VK_F1 && wParam <= VK_F4) {
 						fnChangeFn(wParam - VK_F1 + 1);
 						isToPaint = 1;
+					} else if(wParam == VK_DELETE) {
+						if(curFn == 3) {
+							wbDelText(curSeleTxt);
+							isToPaint = 1;
+						} else if(curFn == 4) {
+							if(grSele2.first == 1) {
+								gr.delVertex(grSele2.second);
+								isToPaint = 1;
+							} else if(grSele2.first == 2) {
+								gr.delEdge(grSele2.second);
+								isToPaint = 1;
+							}
+							grSele2 = { 0, 0 };
+						}
 					}
 				}
 			}

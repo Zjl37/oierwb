@@ -31,7 +31,7 @@ void wbGraph::moveVertex(int i, PointF pos) {
 	}
 }
 
-void wbGraph::createEdge(int u, int v) {
+void wbGraph::createEdge(unsigned u, unsigned v) {
 	es.push_back({ u, v, 0, L"" });
 }
 
@@ -52,5 +52,36 @@ void wbGraph::paint(Graphics &g, std::pair<int, unsigned> sele) {
 		g.FillEllipse(&sbBg, rc);
 		g.DrawEllipse(sele.first == 1 && sele.second == i ? &pen2 : &pen, rc);
 		g.DrawString(vs[i].s.c_str(), -1, &f1, rc, &sfCenter, &sbFg);
+	}
+}
+
+void wbGraph::_delEdge(unsigned j) {
+	std::swap(es[j], *es.rbegin());
+	es.pop_back();
+}
+
+void wbGraph::delEdge(unsigned j) {
+	if(j < es.size())
+		_delEdge(j);
+}
+
+void wbGraph::delVertex(unsigned i) {
+	if(i >= vs.size())
+		return;
+	for(unsigned j = 0; j < es.size(); j++) {
+		if(es[j].u == i || es[j].v == i) {
+			_delEdge(j);
+			--j;
+		}
+	}
+	std::swap(vs[i], *vs.rbegin());
+	vs.pop_back();
+	for(unsigned j = 0; j < es.size(); j++) {
+		if(es[j].u == vs.size()) {
+			es[j].u = i;
+		}
+		if(es[j].v == vs.size()) {
+			es[j].v = i;
+		}
 	}
 }

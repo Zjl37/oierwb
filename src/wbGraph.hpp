@@ -18,7 +18,7 @@ struct wbVertex {
 };
 
 struct wbEdge {
-	int u, v;
+	unsigned u, v;
 	char dir;
 	std::wstring s;
 };
@@ -29,9 +29,10 @@ struct wbGraph {
 
 	std::pair<int, int> select(PointF pt, bool);
 	void createNode(PointF pt);
-	void createEdge(int u, int v);
+	void createEdge(unsigned u, unsigned v);
 	void moveVertex(int i, PointF pos);
-	void delNode(int i);
-	void delEdge(int u, int v);
+	void delVertex(unsigned i);
+	void _delEdge(unsigned i);
+	void delEdge(unsigned i);
 	void paint(Graphics &g, std::pair<int, unsigned> sele);
 };

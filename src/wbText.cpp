@@ -18,8 +18,10 @@ void wbDrawText(const wbText &t, bool edit, Graphics &g) {
 int curSeleTxt;
 std::vector<wbText> texts;
 
-void wbDelText(int i) {
-	texts[i] = *texts.rbegin();
+void wbDelText(unsigned i) {
+	if(i >= texts.size())
+		return;
+	std::swap(texts[i], *texts.rbegin());
 	texts.pop_back();
 }
 

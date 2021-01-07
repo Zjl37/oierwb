@@ -18,6 +18,7 @@ void wbDrawText(const wbText &t, bool edit, Graphics &g);
 extern int curSeleTxt;
 extern std::vector<wbText> texts;
 
+void wbDelText(unsigned i);
 void wbDeselectText();
 void wbSelectText(PointF ptMouse, HDC hdc);
 void wbAddToText(wchar_t ch);
